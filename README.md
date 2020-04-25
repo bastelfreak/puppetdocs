@@ -2,8 +2,8 @@
 
 ## Inhaltsverzeichnis
 
-* [Best Practices für das Testen von Komponenten?](#best-practices-für-das-testen-von-komponenten)
-  * [Was ist ein Puppet Module eigentlich?](#was-ist-ein-puppet-module-eigentlich)
+* [Best Practices für das Testen von Komponenten](#best-practices-für-das-testen-von-komponenten)
+  * [Was ist ein Puppet Modul](#was-ist-ein-puppet-modul)
   * [Warum will man Linter?](#warum-will-man-linter)
   * [rspec](#rspec)
   * [rspec-puppet-facts](#rspec-puppet-facts)
@@ -41,7 +41,7 @@
 
 ## Best Practices für das Testen von Komponenten
 
-### Was ist ein Puppet Module eigentlich?
+### Was ist ein Puppet Modul
 
 * Ein normales Puppet Modul kann man auch als Komponentenmodul bezeichnen
 * Es bündelt Puppet Klassen, welche eine einzelne Komponente verwalten (z.B. nginx oder Apache oder HAProxy)
@@ -899,11 +899,11 @@ gängigen Linux Distributionen haben pandoc in ihren Repositories. Der simpelste
 Aufruf lautet wie folgt:
 
 ```sh
-pandoc --from markdown Puppet_walkthrough.md -o puppet.pdf
+pandoc --from markdown README.md -o puppet.pdf
 ```
 
 ```sh
-pandoc Puppet_walkthrough.md -o puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown -V geometry:margin=.4in --toc --highlight-style=espress
+pandoc README.md -o puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown -V geometry:margin=.4in --toc --highlight-style=espress
 ```
 
 ## Lizenz

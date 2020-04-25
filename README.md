@@ -911,8 +911,8 @@ pandoc README.md -o puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown 
 Dieses Dokument steht unter der
 [CC BY-NC-SA 4.0 Lizenz](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 Codebeispiele sind unter der [GNU Affero General Public License v3.0](LICENSE)
-lizensiert. Für kommerzielle Anfragen oder Feedback kontaktieren sie bitte
-[tim@bastelfreak.de](mailto:tim@bastelfreak.de).
+lizensiert. Für kommerzielle Anfragen, Nachfragen zu Consulting oder Feedback
+kontaktieren sie bitte [tim@bastelfreak.de](mailto:tim@bastelfreak.de).
 
 ## Anmerkungen
 

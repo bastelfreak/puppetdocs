@@ -688,7 +688,7 @@ r10k mit mehreren Workern starten:
 ```puppet
 # puppet/r10k from Vox Pupuli
 class { 'r10k':
-  version   => '3.4.0',
+  version   => '3.5.0',
   pool_size => 10,
 }
 ```

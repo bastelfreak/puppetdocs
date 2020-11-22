@@ -918,3 +918,4 @@ kontaktieren sie bitte [tim@bastelfreak.de](mailto:tim@bastelfreak.de).
 
 * Dieses Dokument wurde ursprünglich als gist gepflegt: [https://gist.github.com/bastelfreak/33a9d1510448e31e7d8139a80d16e44a](https://gist.github.com/bastelfreak/33a9d1510448e31e7d8139a80d16e44a)
 * Weitere Vorträge und Dokumente gibt es in meinem [Git Repository](https://github.com/bastelfreak/talks#collection-of-talks-proposals-and-related-stuff)
+* Für Consulting Anfragen, schicken sie bitte eine Email an [tim@bastelfreak.de](mailto:tim@bastelfreak.de)

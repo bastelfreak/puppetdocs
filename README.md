@@ -35,6 +35,7 @@
   * [PostgreSQL](#postgresql)
   * [Foreman](#foreman)
   * [Puppetserver](#puppetserver)
+* [Upgrades und kompatible Versionen](#upgrades-und-kompatible-versionen)
 * [PDF](#pdf)
 * [Lizenz](#lizenz)
 * [Anmerkungen](#anmerkungen)
@@ -891,6 +892,19 @@ class{'puppet':
   server_jvm_extra_args                  => ['-XX:ReservedCodeCacheSize=2G'],
 }
 ```
+
+## Upgrades und kompatible Versionen
+
+Folgende Puppet Komponenten sind untereinander Kompatibel
+
+Puppet Agent | Puppetserver | PuppetDB
+------------ | ------------ | --------
+6.x | 6.x | 6.x
+5.x | 6.x | 6.x
+4.x | 6.x | 6.x
+7.0.0 | 6.14.1 [^1] | 6.9.1 [^1]
+
+[^1]: wahrscheinlich funktionieren auch ältere versionen
 
 ## PDF
 

@@ -904,6 +904,7 @@ Puppet Agent | Puppetserver | PuppetDB
 5.x | 6.x | 6.x
 4.x | 6.x | 6.x
 7.0.0 | 6.14.1 | 6.9.1
+7.0.0 | 6.14.1 | 7.0.0
 6.19.1 | 6.14.1 | 7.0.0
 
 ### Puppet 6 zu 7 Upgrade

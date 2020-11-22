@@ -36,6 +36,7 @@
   * [Foreman](#foreman)
   * [Puppetserver](#puppetserver)
 * [Upgrades und kompatible Versionen](#upgrades-und-kompatible-versionen)
+  * [Puppet 6 zu 7 Upgrade](#puppet-6-zu-7-upgrade)
 * [PDF](#pdf)
 * [Lizenz](#lizenz)
 * [Anmerkungen](#anmerkungen)
@@ -902,9 +903,25 @@ Puppet Agent | Puppetserver | PuppetDB
 6.x | 6.x | 6.x
 5.x | 6.x | 6.x
 4.x | 6.x | 6.x
-7.0.0 | 6.14.1 <sup>[1](#myfootnote1)</sup> | 6.9.1 <sup>[1](#myfootnote1)</sup>
+7.0.0 | 6.14.1 | 6.9.1
+6.19.1 | 6.14.1 | 7.0.0
 
-* <a name="myfootnote1">1</a>: wahrscheinlich funktionieren auch ältere versionen
+### Puppet 6 zu 7 Upgrade
+
+* Puppet Agent 7 funktioniert mit Puppetserver 6 / PuppetDB 6
+* Puppet Agent 7 funktioniert mit Puppetserver 6 / PuppetDB 7
+
+Es empfiehlt sich folgender Upgrade Pfad:
+
+* Puppet 7 zur CI Pipeline hinzufügen und sicherstellen, dass die Module mit Puppet 7 funktionieren
+* Die einzelnen Agents auf die neusten Puppet 6 Version updaten
+  * Wenn dies erfolgreich war, die Agents auf Version 7 updaten
+* PuppetDB von 6 auf 7 Updaten
+  * Während des Updates erfolgen Datenbank Migrationen. Je nach Anzahl der Reports kann dies mehrere Stunden dauern
+  * Während der Migration ist PuppetDB nicht nutzbar
+  * Man kann vor der Migration die [TTL für Reports heruntersetzen](https://puppet.com/docs/puppetdb/latest/configure.html#report-ttl) und diese damit löschen. Dies reduziert die Downtime
+  * Puppetserver können danach geupdated werden
+
 
 ## PDF
 

@@ -902,9 +902,9 @@ Puppet Agent | Puppetserver | PuppetDB
 6.x | 6.x | 6.x
 5.x | 6.x | 6.x
 4.x | 6.x | 6.x
-7.0.0 | 6.14.1 [^1] | 6.9.1 [^1]
+7.0.0 | 6.14.1 <sup>[1](#myfootnote1)</sup> | 6.9.1 <sup>[1](#myfootnote1)</sup>
 
-[^1]: wahrscheinlich funktionieren auch ältere versionen
+* <a name="myfootnote1">1</a>: wahrscheinlich funktionieren auch ältere versionen
 
 ## PDF
 

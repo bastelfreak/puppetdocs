@@ -37,6 +37,7 @@
   * [Puppetserver](#puppetserver)
 * [Upgrades und kompatible Versionen](#upgrades-und-kompatible-versionen)
   * [Puppet 6 zu 7 Upgrade](#puppet-6-zu-7-upgrade)
+  * [Puppet 7 Bugs](#Puppet-7-Bugs)
 * [PDF](#pdf)
 * [Lizenz](#lizenz)
 * [Anmerkungen](#anmerkungen)
@@ -923,6 +924,11 @@ Es empfiehlt sich folgender Upgrade Pfad:
   * Man kann vor der Migration die [TTL für Reports heruntersetzen](https://puppet.com/docs/puppetdb/latest/configure.html#report-ttl) und diese damit löschen. Dies reduziert die Downtime
   * Puppetserver können danach geupdated werden
 
+### Puppet 7 Bugs
+
+Liste an bekannten Bugs, welche große Auswirkungen haben könnten bei einem Upgrade (Stand 2020-11-24):
+
+* https://tickets.puppetlabs.com/browse/PUP-10793 - Fact is undef with Puppet 6 but empty string with Puppet 7
 
 ## PDF
 

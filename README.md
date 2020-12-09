@@ -929,6 +929,7 @@ Es empfiehlt sich folgender Upgrade Pfad:
 Liste an bekannten Bugs, welche große Auswirkungen haben könnten bei einem Upgrade (Stand 2020-11-24):
 
 * https://tickets.puppetlabs.com/browse/PUP-10793 - Fact is undef with Puppet 6 but empty string with Puppet 7
+* https://tickets.puppetlabs.com/browse/FACT-2880 - facter 4 differing output from facter 3 for service_provider fact
 
 ## PDF
 

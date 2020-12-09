@@ -930,6 +930,7 @@ Liste an bekannten Bugs, welche große Auswirkungen haben könnten bei einem Upg
 
 * https://tickets.puppetlabs.com/browse/PUP-10793 - Fact is undef with Puppet 6 but empty string with Puppet 7
 * https://tickets.puppetlabs.com/browse/FACT-2880 - facter 4 differing output from facter 3 for service_provider fact
+* https://tickets.puppetlabs.com/browse/PUP-10790 - user provider with uid/gid as Integer raises warning
 
 ## PDF
 

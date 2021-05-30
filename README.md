@@ -38,6 +38,21 @@
 * [Upgrades und kompatible Versionen](#upgrades-und-kompatible-versionen)
   * [Puppet 6 zu 7 Upgrade](#puppet-6-zu-7-upgrade)
   * [Puppet 7 Bugs](#Puppet-7-Bugs)
+* [Puppet Tipps und Tricks](#puppet-tipps-und-tricks)
+  * [crl_refresh_interval aktivieren](#crl_refresh_interval-aktivieren)
+  * [ReservedCodeCacheSize erhöhen](#reservedcodecachesize-erhöhen)
+  * [Code Cache Nutzung protokollieren](#code-cache-nutzung-protokollieren)
+  * [Garbage Collection Logging aktivieren](#garbage-collection-logging-aktivieren)
+  * [JVM Heap Abbilder schreiben](#jvm-heap-abbilder-schreiben)
+  * [dns_alt_names beim initialen Puppet run setzen](#dns_alt_names-beim-initialen-puppet-run-setzen)
+  * [Java 11 und nicht Java 8 nutzen](#Java-11-und-nicht-java-8-nutzen)
+  * [trusted_external_command nutzen um Inventarsysteme einzubinden](#trusted_external_command-nutzen-um-inventarsysteme-einzubinden)
+  * [server_max_open_files erhöhen](#server_max_open_files-erhöhen)
+  * [digest_algorithm von md5 auf sha256 ändern](#digest_algorithm-von-md5-auf-sha256-ändern)
+  * [key_type von rsa auf ec wechseln](#key_type-von-rsa-auf-ec-wechseln)
+  * [graph Option aktivieren](#graph-option-aktivieren)
+  * [show_diff aktivieren](#show_diff-aktivieren)
+  * [resubmit_facts aktivieren](#resubmit_facts-aktivieren)
 * [PDF](#pdf)
 * [Lizenz](#lizenz)
 * [Anmerkungen](#anmerkungen)
@@ -813,7 +828,10 @@ pgtune -i /var/lib/pgsql/10/data/postgresql.conf -o postgresql.conf
 
 Für PostgreSQL empfiehlt sich deren eigenes Yum Repository. Die Upstream Pakete
 erlauben es beliebige Versionen parallel zu installieren. Außerdem bekommt das
-Yum Repository am schnellsten Sicherheitsupdates.
+Yum Repository am schnellsten Sicherheitsupdates. PostgreSQL hat in jeder neuen
+Version viele Geschwindigkeitsoptimierungen. Es sollte immer geprüft werden mit
+welcher neusten PostgreSQL Version PuppetDB funktioniert und diese dann genutzt
+werden.
 
 ### Foreman
 
@@ -865,20 +883,29 @@ Puppetlabs bietet im Modul
 einen Monitoring Stack für Puppetserver. Dieser bietet JVM Metriken via JMX und
 Puppetserver Metriken via Graphite.
 
-* Eine JVM Instanz pro CPU Kern funktioniert
-* ~800-1500 Resources pro katalog vertragen 2GB pro JVM Instanz
+* Eine JVM Instanz pro (logischen) CPU Kern funktioniert gut
+  * Auf modernen CPUs auch gern 2 Instanzen pro Kern
+* ~800-1500 Resources pro katalog vertragen 2GB Heap pro JVM Instanz (server_jvm_max_heap_size)
 * Puppetserver kann zum starten weniger Ram allokieren, dies verkürzt die Bootstrap Zeit
 * Puppetserver hat einen Class Cache, welchen man aktivieren kann
 * Jede JVM Instanz hat einen Cache, dieser wird besser je länger er läuft
   * Serverseitige Funktionen mit memory Leaks führen zu Problemen
   * Jeder Restart tötet den Cache
-  * server_max_requests_per_instance auf unendlich setzen oder mindestens 100.000
+  * server_max_requests_per_instance auf unendlich setzen oder mindestens 500.000
+    * Die Option startet die JVM Instanz neu nachdem die Anzahl der Requests bearbeitet wurde, dies resettet den Cache
+    * Man sollte die Option also nur setzen wenn man irgendwo im Code Memory leaks einer Puppet Funktion vermutet
 * Mehrere Puppetserver kann man via DNS Round Robin skalieren
 * HAProxy/Nginx als Proxy davor funktioniert besser als Round Robin
+  * Während eines Agent runs sollte der Agent immer mit dem gleichen Backend sprechen, der Loadbalancer/Proxy muss dies beachten
 * nginx wurde gern zum terminieren von TLS Verbindungen direkt auf Puppetservern genutzt
   * Puppetserver kann dies seit 6 selbst gut
   * Legacy Vortrag: [bastelfreak.de/scalingpuppetserver](https://bastelfreak.de/scalingpuppetserver) ([Repo](https://github.com/bastelfreak/scalingpuppetserver))
-* `file` Reports sind unnötig und fressen oft IO/s und Inodes (`grep ^reports /etc/puppetlabs/puppet/puppet.conf`)
+* `file` Reports sind unnötig und benötigen oft IO/s und Inodes (`grep ^reports /etc/puppetlabs/puppet/puppet.conf`)
+* Jede `file` Ressource mit einer Puppetserver URL (`puppet:///`) kann zu einem eigenen HTTP Request vom Agent zum Puppetserver führen
+  * `source => puppet:///modules/...` durch `content => file(${module_name}/)` ersetzen
+  * Damit liest der Puppetserver die Datei ein während der Katalog kompiliert wird und bindet diese dort ein
+  * Nachteil: Katalog wird größer; Vorteil: Weniger HTTP Verbindungen. Gerade bei Textdatein lohnt sich dies
+  * Große Binärdatein sollten damit nicht verteilt werden. Diese sollten immer anders übertragen werden (z.b. sauber paketiert)
 
 Hiera Optionen für [theforeman/puppet](https://forge.puppet.com/theforeman/puppet):
 
@@ -888,7 +915,7 @@ $cpu_count = $facts['processors']['count'] * 1
 class{'puppet':
   server_jvm_min_heap_size               => "${cpu_count}G",
   server_jvm_max_heap_size               => "${cpu_count_twice}G",
-  server_max_requests_per_instance       => 100000,
+  server_max_requests_per_instance       => 500000,
   server_max_queued_requests             => $cpu_count,
   server_environment_class_cache_enabled => true,
   server_jvm_extra_args                  => ['-XX:ReservedCodeCacheSize=2G'],
@@ -932,6 +959,237 @@ Liste an bekannten Bugs, welche große Auswirkungen haben könnten bei einem Upg
 * https://tickets.puppetlabs.com/browse/FACT-2880 - facter 4 differing output from facter 3 for service_provider fact
 * https://tickets.puppetlabs.com/browse/PUP-10790 - user provider with uid/gid as Integer raises warning
 
+Seit Q2 2021 sind keine offenen Bugs bekannt die ein Upgrade von Puppet 6 zu Puppet 7 behindern
+
+## Puppet Tipps und Tricks
+
+### [crl_refresh_interval](https://puppet.com/docs/puppet/latest/configuration.html#crl_refresh_interval) aktivieren
+
+Auf sehr vielen System wird das Puppet Agent Zertifikat für einen lokalen
+Webserver zweckentfremdet. Oft ebenfalls mit Klientzertifikatsvalidierung. Dies
+funktioniert nur sinnvoll mit einer aktuellen CRL (Certificate Revocation List
+- Liste der von der Puppetserver CA zurückgezogenen Zertifikaten). Beim
+initialen Puppet Lauf wird die CRL vom Puppetserver heruntergeladen, danach
+aber nie aktualisiert. Viele Leute nutzen dafür einen systemd timer um die
+Datei periodisch herunterzuladen. Puppet kann dies seit Version
+[6.5.0](https://puppet.com/docs/puppet/6/release_notes_puppet.html#new_features_puppet_x-5-0-sepcifyc-refresh-interval-crls)
+selbst periodisch aktualisieren.
+
+### ReservedCodeCacheSize erhöhen
+
+Es gibt viele Mythen über die korrekten Optionen für die JVM. Die Kurzfassung:
+`-XX:ReservedCodeCacheSize=2G` sollte immer der Puppetserver JVM mitgegeben
+werden. Details dazu gibt es unter [PUP-10225](https://tickets.puppetlabs.com/browse/PUP-10225)
+sowie [SERVER-2771](https://tickets.puppetlabs.com/browse/SERVER-2771). Dies
+behebt 99% der Performanceprobleme die Leute nach dem Upgrade von Puppetserver
+5 haben. Langfristig soll die Option standardmäßig im Puppetserver gesetzt
+sein. Puppet Inc ist leider etwas träge was das updaten der Doku/Pakete angeht.
+Nähere Informationen zu der Option gibt es in der
+[offiziellen Java Dokumentation](https://docs.oracle.com/en/java/javase/11/tools/java.html#GUID-3B1CE181-CD30-4178-9602-230B800D4FAE__GUID-3CFE74F1-EBAF-4FDA-8472-9C4D583D2723).
+Außerdem hat Baeldung dazu [noch einen Artikel](https://www.baeldung.com/jvm-code-cache)
+Der Blog ist eine sehr gute Anlaufstelle für Artikel über Java, JVM und Spring.
+
+Der Default Wert beträgt, je nach Java Version, 48MB. Dies ist für Java
+Applikationen oftmals vollkommen ausreichend. Für Jruby wird allerdings
+wesentlich mehr benötigt.
+
+### Code Cache Nutzung protokollieren
+
+Um die Ramnutzung etwas transparenter zu gestalten kann man die JVM Option
+`–XX:+PrintCodeCache` setzen. Damit loggt diese die Nutzung/Auslastung des
+Code Caches.
+
+### Garbage Collection Logging aktivieren
+
+Puppetserver und PuppetDB werden innerhalb der JVM ausgeführt. Diese führt
+regelmäßig eine Garbage Collection durch. Hierbei werden nicht mehr benötigte
+Objekte aus dem Arbeitspeicher entfernt. Je mehr Aktivit innerhalb der JVM
+existiert und je näher der genutzte Ram an der Heap Grenze ist, desto
+agressiver und öfter arbeitet der Garbage Collector. In der Regel läuft dieser
+periodisch zum Puppetserver/PuppetDB. Sollte er Ram nicht freigeben können kann
+es vorkommen, dass er die Applikation kurzzeitiig pausiert. All diese
+Informationen kann die JVM in eine Logdatei schreiben. Dies ist nützlich um
+die Arbeitspeichernutzung zu prüfen und ggf den Heap zu vergrößern/verringern.
+Aktiviert wird es mit folgender Option:
+`-Xlog:gc*:file=/gc.log::filecount=16,filesize=20m`
+Dies aktiviert das Logging in die Datei gc.log. Sobald die Datei 20MB Größe
+erreicht wird die rotiert. Es werden 16 Datein vorgehalten. Für Puppetserver
+empfiehlt sich der Pfad `/var/log/puppetlabs/puppetserver/puppetserver_gc.log`,
+für PuppetDB `/var/log/puppetlabs/puppetdb/puppetdb_gc.log`.
+
+Es gibt verschiedene Tools, welche die Logs auswerten können. Eine simple
+Version ist der Upload auf https://gceasy.io/.
+
+### JVM Heap Abbilder schreiben
+
+Sobald die JVM versucht mehr Arbeitsspeicher zu nutzen als verfügbar/Heap
+erlaubt, läuft die JVM in einen Out of Memory Fehler und wird beendet. Sofern
+dies passiert kann die JVM ein Abbild des Heaps auf das Dateisystem schreiben.
+Out of Memory Fehler werden provoziert wenn Heap massiv zu klein konfiguriert
+ist oder ein Puppet Modul irgendeine Funktion bereitstellt die Memory Leaks
+verursacht. Wenn `max_requests_per_instance` im Puppetserver gesetzt ist werden
+Memory Leaks eventuell verschleiert weil die einzelnen JVM Instanzen regelmäßig
+neugestartet werden. Die erzeugten Abbilder können mit verschiedenen Tools
+analysiert und visualisiert werden.
+
+### dns_alt_names beim initialen Puppet run setzen
+
+Damit mindestens Webbrowser TLS Zertifikate als valide empfinden muss ein FQDN
+als Subject Alternative Name im Zertifikat gesetzt werden. Chrome erfordert
+dies [seit Version 58](https://www.chromestatus.com/feature/4981025180483584).
+Puppet setzt bis Puppetserver 6.15.3 ausschließlich den alten Common Name. Als
+Workaround kann man den initialen Puppet run starten mit:
+`puppet agent -t --dns_alt_names=$(hostname -f)`. Sofern ein Server mehrere FQDNs
+hat die auf ihn zeigen kann man der Option auch eine Kommaseparierte Liste
+mitgeben. [Seit Puppetserver 6.15.3 bzw. 7.1.0](https://tickets.puppetlabs.com/browse/SERVER-2338)
+setzt die Puppetserver CA den Common Name ebenfalls als Subject Alternative
+Name.
+
+### Java 11 und nicht Java 8 nutzen
+
+Je nach Version vom Puppetserver und PuppetDB werden diese mit Java 8
+ausgeführt. Diese Version ist sehr sehr alte. Puppetserver 6 und PuppetDB 6
+unterstützen diese auch Java 11. Dies sollte unbedingt genutzt werden. Es
+empfiehlt sich regelmäßig die Release Notes zu prüfen. Sobald eine neuere Java
+Version unterstützt wird sollte auf diese gewechselt werden. Beide Dienste
+funktionieren sehr gut mit OpenJDK/AdoptJDK. Es wird kein Java von Oracle
+benötigt.
+
+### `$trusted['certname']` und nicht `$facts['networking']['fqdn']` nutzen
+
+Oftmals wird innerhalb der Puppet DSL der FQDN vom Agent benötigt. Hierzu gibt
+es viele Optionen. Veraltet sind:
+
+* `$fqdn`
+* `$::fqdn`
+* `$facts['fqdn']`
+
+Diese drei optionen sind veraltet. Alternativ soll `$facts['networking']['fqdn']`
+genutzt werden. Dies liefert den FQDN zurück. Dieser kann aber auf dem Quellsystem
+sehr einfach geändert und manipuliert werden. In den meisten Fällen ist
+`$trusted['certname']` die bessere Option. Dies ist der Common Name aus dem
+Zertifikat des Agents. In der Regel entspricht dies dem FQDN des Agents
+*während des ersten* Puppet runs.
+
+### trusted_external_command nutzen um Inventarsysteme einzubinden
+
+Oft hat man Innerhalb einer Firma ein zentrales Inventarsystem. Leider meistens
+sogar mehrere. Oft enthalten diese Informationen die man auch innerhalb einer
+Puppet Umgebung nutzen möchte. Oft werden z.b. die Teamzugehörigkeit oder
+offene Problemtickets in der motd eines Servers verlinkt. Mit der
+[trusted_external_command](https://puppet.com/docs/puppet/latest/configuration.html#trusted_external_command)
+Option kann man auf dem Puppetserver ein Script hinterlegen. Diesem wird als
+erster Parameter der Common Name des anfragenden Agents übergeben. Das Script
+kann sich dann zu externen Systemen verbinden und dort die Informationen
+ermitteln. Puppet erwartet als Antwort einen JSON Hash. Dieser wird
+in den Hash `$trusted['externa']` eingefügt und ist innerhalb des Puppet Codes
+verfügbar. Puppet Code kann `$trusted` nicht überschreiben, nur lesen.
+
+Ein gutes Beispiel hierfür ist das servicenow Modul von Puppet Inc. ServiceNow
+ist ein cloudbasiertes Inventarsystem. Das Script für den
+`trusted_external_command` gibt es
+[hier](https://github.com/puppetlabs/puppetlabs-servicenow_cmdb_integration/blob/main/files/servicenow.rb).
+
+Achtung: Die Lizenz erlaubt nur eine Nutzung mit Puppet Enterprise.
+
+### server_max_open_files erhöhen
+
+Jeder Prozess darf unter Linux eine bestimmte Anzahl offener Dateideskriptoren
+haben. Dies sind zum großen Teil geöffnete Datein und TCP Sockets. Das Limit
+lässt sich mit `ulimit -Sn` auslesen und beträgt auf den meisten Systemen 1024
+für normale Benutzer (Soft Limit). Diese können es manuell auf den Wert von
+`ulimit -Hn` erhöhen (Hard Limit). Ein Puppetserver mit vielen JVM Instanzen,
+der eventuell mit mehreren externen Diensten (Report Prozessor,
+trusted_external_command...) kommuniziert, benötigt oftmals mehr offene
+Dateideskriptoren. Die aktuell offenne Dateideskriptoren lassen sich wie folgt
+ermitteln:
+`find /proc/$(pgrep -f puppetserver)/fd | wc -l`
+Mit dem puppetserver Puppet Modul lässt sich das limit erhöhen:
+
+```yaml
+puppet::server_max_open_files: 16384
+```
+
+Es gibt noch ein globales Limit welches der Linux Kernel vorgibt. Dies erhält
+man mit `sysctl fs.file-max`. Es kann ebenfalls über Puppet erhöht werden:
+
+
+```puppet
+sysctl { 'fs.file-max':
+  ensure => 'present',
+  value => '9923372036854775807',
+  target => '/etc/sysctl.d/99-puppet.conf',
+```
+
+Sofern dies nötig ist deuted es immer auf ein Problem auf dem Server hin!
+Weitere Informationen findet man in der
+[Linux Kernel Dokumentation](https://www.kernel.org/doc/Documentation/sysctl/fs.txt).
+
+### digest_algorithm von md5 auf sha256 ändern
+
+[digest_algorithm](https://puppet.com/docs/puppet/latest/configuration.html#digest_algorithm)
+bestimmt das Hashverfahren mit dem Datein vergleichen werden. Puppetserver
+erzeugt Prüfsummen für Datein auf dem Puppetserver. Der Agent führt das gleiche
+lokal durch und geänderte Datein zu erkennen. Bis einschließlich Puppet 6 wird
+hier das veraltete md5 genutzt. Seit Puppet 7 ist der Standardwert sha256.
+Ältere Puppet 4/5/6 Umgebungen sollten ebenfalls auf sha256 geändert werden.
+Sofern benötigt, kann man dies auch auf sha512 ändern. Dies ist eventuell für
+einige Zertifizierungen/Audits notwendig. Die Option wird in der puppet.conf
+gesetzt.
+
+### key_type von rsa auf ec wechseln
+
+Standardmäßig nutzt Puppet Agent veraltete Zertifikate mit dem RSA Verfahren.
+[Seit Puppet 6.5.0](https://puppet.com/docs/puppet/6/release_notes_puppet.html#new_features_puppet_x-5-0-elliptic-curve-cyptography-support)
+kann man aber aber Zertifikate auf Basis von Elliptischen Kurven nutzen. Dafür
+muss in der puppet.conf vor dem ersten Puppet Run (Bevor ein Zertifikat
+vorhanden ist) die Option `key_type` auf `ec` gesetzt werden. Zertifikate auf
+Basis Elliptischer Kurven gelten als Zukunftssicher und benötigen weniger
+Speicherplatz.
+
+### graph Option aktivieren
+
+Der Puppet agent wendet bei jedem Lauf einen Katalog an, den zuvor der
+Puppetserver kompiliert hat. Dieser besteht aus einem gerichteten Graphen.
+Alle Ressources die angewendet werden sollen werden untereinander auf implizite
+und explizite Abhängigkeiten geprüft und in eine Reihenfolge gebracht. Manchmal
+gibt es Probleme den Katalog auf einem Node anzuwenden. Dazu kann der Agent den
+Graph lokal speichern in verschiedenen Formaten. Die Option ist standardmäßig
+deaktiviert, sollte aber aktiviert sein um auch einmalig aufgetretene Fehler im
+nachhinein noch zu analysieren.
+
+[Directed acyclic Graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph) bei Wikipedia
+
+### show_diff aktivieren
+
+Wenn Puppet eine Datei ändern, sei es mit der Concat Resource oder weil die
+ganze Datei vom Puppetserver kommt oder aus einem Template generiert wird, kann
+Puppet einen diff anzeigen, wenn show_diff=true gesetzt ist. In dem Fall wird
+der diff aber auch im Report gespeichert und damit zum Puppetserver
+zurückgeschickt. Wenn man Reports verarbeitet, z.b. mit Foreman, kann man sich
+hier die diffs anzeigen lassen. ist show_diff nicht gesetzt oder `false` kann
+man im Report nur erkennen das eine Datei geändert wurde, aber nicht wie. Es
+empfiehlt sich daher die Option zu aktivieren. Reports sollten dann allerdings
+nicht unverschlüsselt übertragen werden da diffs potentiell sensitive
+Informationen enthalten können.
+
+### resubmit_facts aktivieren
+
+In einer Agent/Server Umgebung werden Facts auf dem Agent ermittelt und zum
+Server geschickt. Im Gegenzug bekommt der Agent den kompilierten Katalog zurück
+und wendet ihn an. Am Ende wird ein Report zum Server geschickt. Es ist
+möglich, dass der Katalog Einfluss auf Werte irgendwelcher Facts hat (z.B. die
+Anzahl offener Updates wenn der Katalog Updates bestimmter Pakete erzwingt).
+Somit sind Facts in der PuppetDB eventuell nicht aktuell nachdem ein Katalog
+angewand wurde. Sofern man viel mit PuppetDB Queries innerhalb der Puppet
+Codebasis agiert und Facts anderer Node ausliest, oder sich viele Reports mit
+eigenen PuppetDB Queries erzeugt ist es sinnvoll dem Agent mitzuteilen, dass
+er Facts nach dem anwenden des Katalogs nochmal zum Server schicken soll.
+Dies kann man mit der Option
+[resubmit_facts](https://puppet.com/docs/puppet/latest/configuration.html#resubmit_facts)
+aktivieren. Somit verdoppelt sich allerdings die Last durch Facts auf der
+Puppetdb.
+
 ## PDF
 
 `pandoc` ermöglicht es aus dieser markdown Datei eine pdf zu generieren. Die
@@ -939,11 +1197,11 @@ gängigen Linux Distributionen haben pandoc in ihren Repositories. Der simpelste
 Aufruf lautet wie folgt:
 
 ```sh
-pandoc --from markdown README.md -o puppet.pdf
+pandoc --from markdown README.md --output puppet.pdf
 ```
 
 ```sh
-pandoc README.md -o puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown -V geometry:margin=.4in --toc --highlight-style=espress
+pandoc README.md ---output puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown -V geometry:margin=.4in --toc --highlight-style=espress
 ```
 
 ## Lizenz

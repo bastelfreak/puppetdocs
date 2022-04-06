@@ -835,6 +835,92 @@ welcher neusten PostgreSQL Version PuppetDB funktioniert und diese dann genutzt
 werden. PuppetDB 6 und 7 in Puppet Enterprise nutzen PostgreSQL 11. Nutzer von
 PuppetDB 7 haben auch berichtet, dass sie erfolgreich PostgreSQL 13 einsetzen.
 
+Neben dem autovacuum, welches als gelöscht markierte Tuples entfernt, bietet
+sich auch die Nutzung von [pg_repack](https://reorg.github.io/pg_repack/) an.
+Für Puppet Enterprise wird dies mit dem
+[pe_databases](https://github.com/puppetlabs/puppetlabs-pe_databases) Modul
+konfiguriert. `pg_repack` kann Tabellen und Indexe aufräumen sowie die
+PostgreSQL Daten im Dateisystem neu ordnen. Somit benötigen Queries weniger IO.
+
+Hier die 3 Timer + Services aus einer PE Umgebung extrahiert.
+
+```
+# /etc/systemd/system/pe_databases-catalogs.service
+[Unit]
+Description=Service to repack PE database tables
+Wants=pe_databases-catalogs.timer
+
+[Service]
+User=pe-postgres
+Group=pe-postgres
+Type=oneshot
+ExecStart=/opt/puppetlabs/server/apps/postgresql/11/bin/pg_repack -d pe-puppetdb --jobs 3 -t catalogs -t catalog_resources -t catalog_inputs -t edges -t certnames
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/pe_databases-catalogs.timer
+[Unit]
+Description=Timer to trigger repacking PE database tables
+
+[Timer]
+OnCalendar=Sun,Thu *-*-* 04:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
+# /etc/systemd/system/pe_databases-facts.service
+[Unit]
+Description=Service to repack PE database tables
+Wants=pe_databases-facts.timer
+
+[Service]
+User=pe-postgres
+Group=pe-postgres
+Type=oneshot
+ExecStart=/opt/puppetlabs/server/apps/postgresql/11/bin/pg_repack -d pe-puppetdb --jobs 3 -t factsets -t fact_paths
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/pe_databases-facts.timer
+[Unit]
+Description=Timer to trigger repacking PE database tables
+
+[Timer]
+OnCalendar=Tue,Sat *-*-* 04:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
+# /etc/systemd/system/pe_databases-other.service
+[Unit]
+Description=Service to repack PE database tables
+Wants=pe_databases-other.timer
+
+[Service]
+User=pe-postgres
+Group=pe-postgres
+Type=oneshot
+ExecStart=/opt/puppetlabs/server/apps/postgresql/11/bin/pg_repack -d pe-puppetdb --jobs 3 -t producers -t resource_params -t resource_params_cache
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/pe_databases-other.timer
+[Unit]
+Description=Timer to trigger repacking PE database tables
+
+[Timer]
+OnCalendar=*-*-20 05:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
 ### Foreman
 
 Hiera Optionen für [theforeman/foreman](https://forge.puppet.com/theforeman/foreman):

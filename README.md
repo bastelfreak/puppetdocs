@@ -1278,6 +1278,124 @@ Dies kann man mit der Option
 aktivieren. Somit verdoppelt sich allerdings die Last durch Facts auf der
 Puppetdb.
 
+### summarize aktivieren
+
+Damit wird am Ende eines Agent runs eine Zusammenfassung ausgegeben
+
+```
+Application:
+   Initial environment: function
+   Converged environment: function
+         Run mode: user
+Changes:
+            Total: 1
+Events:
+          Success: 1
+            Total: 1
+Resources:
+          Changed: 1
+      Out of sync: 1
+            Total: 826
+Time:
+      Concat file: 0.00
+   Concat fragment: 0.00
+         Schedule: 0.00
+             User: 0.00
+            Mount: 0.00
+   Ssh authorized key: 0.00
+           Notify: 0.00
+             Exec: 0.00
+             Cron: 0.00
+              Pam: 0.00
+      Ini setting: 0.01
+         Shellvar: 0.06
+           Sysctl: 0.09
+             File: 0.20
+          Package: 0.27
+          Service: 0.32
+   Config retrieval: 1.21
+          Vcsrepo: 1.47
+         Last run: 1649238895
+   Transaction evaluation: 3.93
+   Catalog application: 4.01
+       Filebucket: 0.00
+            Total: 4.05
+Version:
+           Config: 4d3c463 - Tim Meusel, Fri Apr 1 14:42:05 2022 +0200 : Add test foo
+           Puppet: 7.14.0
+```
+
+### write-catalog-summary aktivieren
+
+Damit legt Puppet
+`/opt/puppetlabs/puppet/cache/state/{last_run_report,last_run_summary}.yaml`
+an. Beide Datein enthalten Informationen über den letzten Puppet Run, die
+Laufzeit einzelner Ressourcen und vorhandene Tags.
+
+### strict_variables
+
+Wenn die Option aktiv ist, wird ein Compile Error bei der Verwendung nicht
+initialisierter Puppet Variablen erzeugt. [Upstream Doku](https://puppet.com/docs/puppet/7/configuration.html#strict-variables)
+
+### strict auf error setzen
+
+Damit wird Puppet Code validiert und ein Compile Error erzeugt, sofern es
+Fehler gibt. [Upstream Doku](https://puppet.com/docs/puppet/7/configuration.html#strict)
+
+### trace
+
+Sollte es irgendwelche Ruby Fehler geben, wird ein Trace davon ausgegeben.
+
+### Puppet Agent via Timer steuern
+
+Standardmäßig läuft Puppet als Agent, in einem 30 Minuten Interval. Mit der
+splay Option lassen sich die Agents auch etwas verteilen, es kommt aber
+trotzdem oft zu einem Schwarmverhalten. Dem kann man entgegen wirken, in dem
+man den Puppet Agent nicht als Daemon, sondern mit System Timern laufen lässt.
+
+```
+$puppet_timer_runinterval = 30 # run interval in minutes
+$puppet_timer_command = '/opt/puppetlabs/bin/puppet agent --onetime --summarize --no-splay --verbose --no-daemonize --detailed-exitcode --show-diff'
+$first_run = fqdn_rand($puppet_timer_runinterval)
+$second_run = $first_run + $puppet_timer_runinterval
+# lint:ignore:strict_indent
+$_timer = @("EOT")
+# THIS FILE IS MANAGED BY PUPPET
+[Unit]
+Description=Systemd Timer for Puppet Agent
+
+[Timer]
+Persistent=true
+OnCalendar=*-*-* *:${first_run},${second_run}:00
+
+[Install]
+WantedBy=timers.target
+| EOT
+
+$_service = @("EOT")
+# THIS FILE IS MANAGED BY PUPPET
+[Unit]
+Description=Systemd Timer Service for Puppet Agent
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=${puppet_timer_command}
+SuccessExitStatus=2
+User=root
+Group=root
+| EOT
+# lint:endignore:strict_indent
+
+# we should not use the name puppet or puppet-agent. That .service might already exist
+systemd::timer { 'puppet-timer.timer':
+  timer_content   => $_timer,
+  service_content => $_service,
+  active          => true,
+  enable          => true,
+}
+```
 ## PDF
 
 `pandoc` ermöglicht es aus dieser markdown Datei eine pdf zu generieren. Die

@@ -786,6 +786,7 @@ Dedizierter Vortrag über  [Puppetserver Skalierung](https://github.com/bastelfr
 * Ein verteiltes System ist immer nur so stark wie ihr schwächstes Glied
 * Tuning Optionen sind immer stark abhängig von der Anzahl der Resources pro Node / Runinterval / Funktionen
   * Die Werte sollten deshalb nicht blind übernommen werden
+  * Es sollte immer nur ein Wert gleichzeitig geändert werden um die Auswirkungen besser zu verstehen
 
 ### PuppetDB
 

@@ -1288,8 +1288,10 @@ Aufruf lautet wie folgt:
 pandoc --from markdown README.md --output puppet.pdf
 ```
 
+Und für die puppet.pdf hier im Repo:
+
 ```sh
-pandoc README.md ---output puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown -V geometry:margin=.4in --toc --highlight-style=espress
+pandoc README.md --output puppet.pdf "-fmarkdown-implicit_figures -o" --from=markdown -V geometry:margin=.4in --toc --highlight-style=espresso
 ```
 
 ## Lizenz

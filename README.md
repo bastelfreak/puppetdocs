@@ -998,7 +998,7 @@ wesentlich mehr benötigt.
 ### Code Cache Nutzung protokollieren
 
 Um die Ramnutzung etwas transparenter zu gestalten kann man die JVM Option
-`–XX:+PrintCodeCache` setzen. Damit loggt diese die Nutzung/Auslastung des
+`-XX:+PrintCodeCache` setzen. Damit loggt diese die Nutzung/Auslastung des
 Code Caches.
 
 ### Garbage Collection Logging aktivieren

@@ -832,7 +832,8 @@ erlauben es beliebige Versionen parallel zu installieren. Außerdem bekommt das
 Yum Repository am schnellsten Sicherheitsupdates. PostgreSQL hat in jeder neuen
 Version viele Geschwindigkeitsoptimierungen. Es sollte immer geprüft werden mit
 welcher neusten PostgreSQL Version PuppetDB funktioniert und diese dann genutzt
-werden.
+werden. PuppetDB 6 und 7 in Puppet Enterprise nutzen PostgreSQL 11. Nutzer von
+PuppetDB 7 haben auch berichtet, dass sie erfolgreich PostgreSQL 13 einsetzen.
 
 ### Foreman
 
